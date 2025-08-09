@@ -1,11 +1,13 @@
 
 import React, { useEffect, useState } from 'react';
-import { NavigateTo, Screen } from '../types';
+import { AnalysisReport } from '../types';
 import { CenteredLayout } from '../components/Layout';
 import { CheckCircleIcon } from '../components/Icons';
+import { analyzePlan } from '../api/vesta';
 
 interface AnalysisInProgressScreenProps {
-  navigateTo: NavigateTo;
+  planContent: string;
+  onAnalysisComplete: (report: AnalysisReport) => void;
 }
 
 const analysisSteps = [
@@ -16,13 +18,13 @@ const analysisSteps = [
   'Generating actionable recommendations...',
 ];
 
-const AnalysisInProgressScreen: React.FC<AnalysisInProgressScreenProps> = ({ navigateTo }) => {
+const AnalysisInProgressScreen: React.FC<AnalysisInProgressScreenProps> = ({ planContent, onAnalysisComplete }) => {
   const [visibleSteps, setVisibleSteps] = useState(0);
 
   useEffect(() => {
-    const navigationTimer = setTimeout(() => {
-      navigateTo(Screen.Report);
-    }, 5000);
+    analyzePlan(planContent).then(report => {
+        onAnalysisComplete(report);
+    });
 
     const stepsInterval = setInterval(() => {
         setVisibleSteps(prev => {
@@ -35,11 +37,10 @@ const AnalysisInProgressScreen: React.FC<AnalysisInProgressScreenProps> = ({ nav
     }, 800);
 
     return () => {
-      clearTimeout(navigationTimer);
       clearInterval(stepsInterval);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [navigateTo]);
+  }, [planContent, onAnalysisComplete]);
 
   return (
     <CenteredLayout>

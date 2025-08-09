@@ -1,12 +1,13 @@
 
-import React, { useState } from 'react';
-import { NavigateTo, Screen } from '../types';
+import React, { useState, useMemo } from 'react';
+import { NavigateTo, Screen, AnalysisReport, Finding } from '../types';
 import { SidebarMainLayout } from '../components/Layout';
 import { Header } from '../components/Header';
 import { ResponsiveContainer, PieChart, Pie, Cell, Legend, Tooltip } from 'recharts';
 
 interface ReportScreenProps {
   navigateTo: NavigateTo;
+  report: AnalysisReport | null;
 }
 
 interface StatCardProps {
@@ -22,49 +23,61 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, color = 'text-vesta-p
   </div>
 );
 
-const riskData = [
-  { name: 'Critical Issues', value: 3, color: '#D0021B' },
-  { name: 'Warnings', value: 8, color: '#F5A623' },
-  { name: 'Compliance Gaps', value: 5, color: '#4A90E2' },
-  { name: 'Operational Risks', value: 12, color: '#9DB2BF' },
-];
+const RiskDonutChart = ({ findings }: { findings: Finding[] }) => {
+    const riskData = useMemo(() => {
+        const criticalCount = findings.filter(f => f.severity === 'critical').length;
+        const warningCount = findings.filter(f => f.severity === 'warning').length;
+        
+        return [
+            { name: 'Critical Issues', value: criticalCount, color: '#D0021B' },
+            { name: 'Warnings', value: warningCount, color: '#F5A623' },
+        ].filter(item => item.value > 0);
+    }, [findings]);
 
-const RiskDonutChart = () => (
-    <div className="bg-white p-6 rounded-lg shadow-md h-96">
-        <h3 className="font-bold text-lg text-vesta-primary mb-4">Risks by Category</h3>
-        <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-                <Pie
-                    data={riskData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={90}
-                    fill="#8884d8"
-                    paddingAngle={5}
-                    dataKey="value"
-                    nameKey="name"
-                >
-                    {riskData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                </Pie>
-                <Tooltip />
-                <Legend iconType="circle" />
-            </PieChart>
-        </ResponsiveContainer>
-    </div>
-);
-
-interface AccordionItemProps {
-    title: string;
-    severity: 'critical' | 'warning';
-    isOpen: boolean;
-    onClick: () => void;
-    children: React.ReactNode;
+    if (riskData.length === 0) {
+        return (
+            <div className="bg-white p-6 rounded-lg shadow-md h-96 flex flex-col justify-center items-center">
+                <h3 className="font-bold text-lg text-vesta-primary mb-4">No Risks Detected</h3>
+                <p className="text-vesta-text-light">The analysis did not find any critical issues or warnings.</p>
+            </div>
+        );
+    }
+    
+    return (
+        <div className="bg-white p-6 rounded-lg shadow-md h-96">
+            <h3 className="font-bold text-lg text-vesta-primary mb-4">Risks by Category</h3>
+            <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                    <Pie
+                        data={riskData}
+                        cx="50%"
+                        cy="45%"
+                        innerRadius={60}
+                        outerRadius={90}
+                        fill="#8884d8"
+                        paddingAngle={5}
+                        dataKey="value"
+                        nameKey="name"
+                    >
+                        {riskData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                    </Pie>
+                    <Tooltip />
+                    <Legend wrapperStyle={{ bottom: 0 }} iconType="circle" />
+                </PieChart>
+            </ResponsiveContainer>
+        </div>
+    );
 }
 
-const AccordionItem: React.FC<AccordionItemProps> = ({ title, severity, isOpen, onClick, children }) => {
+interface AccordionItemProps {
+    finding: Finding;
+    isOpen: boolean;
+    onClick: () => void;
+}
+
+const AccordionItem: React.FC<AccordionItemProps> = ({ finding, isOpen, onClick }) => {
     const severityClasses = {
         critical: {
             bg: 'bg-vesta-accent-critical/10',
@@ -77,76 +90,95 @@ const AccordionItem: React.FC<AccordionItemProps> = ({ title, severity, isOpen, 
             text: 'text-vesta-accent-warning'
         }
     };
-    const classes = severityClasses[severity];
+    const classes = severityClasses[finding.severity];
 
     return (
         <div className={`border-l-4 rounded-r-lg ${classes.border} ${classes.bg}`}>
             <button onClick={onClick} className="w-full flex justify-between items-center p-4 text-left">
-                <span className="font-semibold text-vesta-primary">{title}</span>
-                <div className='flex items-center'>
-                    <span className={`text-sm font-bold uppercase mr-4 ${classes.text}`}>{severity}</span>
+                <span className="font-semibold text-vesta-primary flex-1 pr-4">{finding.title}</span>
+                <div className='flex items-center flex-shrink-0'>
+                    <span className={`text-sm font-bold uppercase mr-4 ${classes.text}`}>{finding.severity}</span>
                     <svg className={`w-6 h-6 transform transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                     </svg>
                 </div>
             </button>
             {isOpen && (
-                <div className="p-4 border-t border-gray-200">
-                    {children}
+                <div className="p-4 border-t border-gray-200/50">
+                     <div className="space-y-4 text-sm">
+                        <div>
+                            <p className="font-semibold text-vesta-text-light mb-1">Source Text Snippet:</p>
+                            <blockquote className="border-l-4 border-gray-300 pl-4 py-2 bg-gray-50 italic text-vesta-text">"{finding.sourceSnippet}"</blockquote>
+                        </div>
+                        <div>
+                            <p className="font-semibold text-vesta-text-light mb-1">Vesta's Recommendation:</p>
+                            <p className="text-vesta-text-light leading-relaxed">{finding.recommendation}</p>
+                        </div>
+                        <div className="flex space-x-3 pt-2">
+                            <button className="px-4 py-2 text-sm font-semibold text-white bg-vesta-accent-success rounded-lg hover:bg-opacity-90">Mark as Resolved</button>
+                            <button className="px-4 py-2 text-sm font-semibold text-vesta-text-light bg-gray-200 rounded-lg hover:bg-gray-300">Dismiss</button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>
     );
 };
 
-const ReportScreen: React.FC<ReportScreenProps> = ({ navigateTo }) => {
-    const [openAccordionId, setOpenAccordionId] = useState<string | null>('finding-1');
+const ReportScreen: React.FC<ReportScreenProps> = ({ navigateTo, report }) => {
+    const [openAccordionId, setOpenAccordionId] = useState<string | null>(report?.findings[0]?.id ?? null);
     
     const toggleAccordion = (id: string) => {
         setOpenAccordionId(openAccordionId === id ? null : id);
     };
 
+    if (!report) {
+        return (
+            <SidebarMainLayout navigateTo={navigateTo} activeScreen={Screen.Dashboard}>
+                <Header title="Analysis Report" />
+                <div className="p-8 text-center">
+                    <h2 className="text-xl font-bold text-vesta-primary">No report data available.</h2>
+                    <p className="text-vesta-text-light mt-2">Please start a new analysis to view a report.</p>
+                    <button onClick={() => navigateTo(Screen.Upload)} className="mt-6 bg-vesta-primary text-white font-bold py-3 px-6 rounded-lg hover:bg-opacity-90 transition-all">
+                        Start New Analysis
+                    </button>
+                </div>
+            </SidebarMainLayout>
+        );
+    }
+
     return (
         <SidebarMainLayout navigateTo={navigateTo} activeScreen={Screen.Dashboard}>
-            <Header title="Analysis for: Q3 Mobile Banking App Relaunch" showExportButton />
+            <Header title={`Analysis for: ${report.title}`} showExportButton />
             <div className="p-8 space-y-8">
                 <div>
                     <h2 className="text-xl font-bold text-vesta-text mb-4">Executive Summary</h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        <StatCard title="Resilience Score" value="78%" />
-                        <StatCard title="Critical Issues" value="3" color="text-vesta-accent-critical" />
-                        <StatCard title="Warnings" value="8" color="text-vesta-accent-warning" />
-                        <StatCard title="Checks Performed" value="1,247" />
+                        <StatCard title="Resilience Score" value={`${report.resilienceScore}%`} />
+                        <StatCard title="Critical Issues" value={String(report.summary.critical)} color="text-vesta-accent-critical" />
+                        <StatCard title="Warnings" value={String(report.summary.warning)} color="text-vesta-accent-warning" />
+                        <StatCard title="Checks Performed" value={report.summary.checks.toLocaleString()} />
                     </div>
                 </div>
 
-                <RiskDonutChart/>
+                <RiskDonutChart findings={report.findings} />
 
                 <div>
                     <h2 className="text-xl font-bold text-vesta-text mb-4">Detailed Findings</h2>
                     <div className="space-y-4">
-                        <AccordionItem title="Critical: Missing clause for customer data consent under PDPA." severity="critical" isOpen={openAccordionId === 'finding-1'} onClick={() => toggleAccordion('finding-1')}>
-                            <div className="space-y-4 text-sm">
-                                <div>
-                                    <p className="font-semibold text-vesta-text-light mb-1">Source Text Snippet:</p>
-                                    <blockquote className="border-l-4 border-gray-300 pl-4 py-2 bg-gray-50 italic text-vesta-text">"...the app will collect user names and contact details during registration."</blockquote>
-                                </div>
-                                <div>
-                                    <p className="font-semibold text-vesta-text-light mb-1">Vesta's Recommendation:</p>
-                                    <p className="text-vesta-text-light leading-relaxed">"Add an explicit consent checkbox and a link to the privacy policy on the registration screen. The privacy policy must clearly state the purpose of data collection, in compliance with the Philippine Data Privacy Act of 2012 (RA 10173)."</p>
-                                </div>
-                                <div className="flex space-x-3 pt-2">
-                                    <button className="px-4 py-2 text-sm font-semibold text-white bg-vesta-accent-success rounded-lg hover:bg-opacity-90">Mark as Resolved</button>
-                                    <button className="px-4 py-2 text-sm font-semibold text-vesta-text-light bg-gray-200 rounded-lg hover:bg-gray-300">Dismiss</button>
-                                </div>
+                        {report.findings.length > 0 ? report.findings.map(finding => (
+                            <AccordionItem 
+                                key={finding.id}
+                                finding={finding}
+                                isOpen={openAccordionId === finding.id} 
+                                onClick={() => toggleAccordion(finding.id)}
+                            />
+                        )) : (
+                            <div className="bg-white p-8 rounded-lg shadow-md text-center border border-border-color">
+                                <h3 className="text-lg font-semibold text-vesta-primary">No Findings</h3>
+                                <p className="mt-2 text-vesta-text-light">Congratulations! The analysis did not uncover any issues in your document.</p>
                             </div>
-                        </AccordionItem>
-                        <AccordionItem title="Warning: Budget does not account for mandatory cybersecurity audit." severity="warning" isOpen={openAccordionId === 'finding-2'} onClick={() => toggleAccordion('finding-2')}>
-                            <p className="text-vesta-text-light">Details for this warning would be displayed here.</p>
-                        </AccordionItem>
-                        <AccordionItem title="Warning: Project timeline does not allocate time for BSP reporting." severity="warning" isOpen={openAccordionId === 'finding-3'} onClick={() => toggleAccordion('finding-3')}>
-                            <p className="text-vesta-text-light">Details for this warning would be displayed here.</p>
-                        </AccordionItem>
+                        )}
                     </div>
                 </div>
             </div>

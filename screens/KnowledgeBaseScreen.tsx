@@ -29,18 +29,26 @@ const KnowledgeBaseScreen: React.FC<KnowledgeBaseScreenProps> = ({ navigateTo })
 
     const handleAddSource = () => {
         if (!newUrl.trim()) return;
+        
+        const crawlingSource: KnowledgeSource = {
+            id: Date.now(),
+            url: newUrl,
+            addedDate: new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
+            status: 'Crawling',
+        };
+        
+        setSources(prev => [crawlingSource, ...prev]);
+        setNewUrl('');
         setIsAdding(true);
+        
         setTimeout(() => {
-            const newSource: KnowledgeSource = {
-                id: Date.now(),
-                url: newUrl,
-                addedDate: new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
-                status: 'Active',
-            };
-            setSources(prev => [newSource, ...prev]);
-            setNewUrl('');
+            setSources(prev => prev.map(s => s.id === crawlingSource.id ? { ...s, status: 'Active' } : s));
             setIsAdding(false);
-        }, 1500); // Simulate crawling/processing time
+        }, 2500); // Simulate crawling/processing time
+    };
+
+    const handleDeleteSource = (id: number) => {
+        setSources(prev => prev.filter(source => source.id !== id));
     };
     
   return (
@@ -65,12 +73,12 @@ const KnowledgeBaseScreen: React.FC<KnowledgeBaseScreenProps> = ({ navigateTo })
                 <button 
                     onClick={handleAddSource}
                     disabled={isAdding || !newUrl.trim()}
-                    className="flex items-center px-6 py-2 bg-vesta-primary text-white font-bold rounded-lg hover:bg-opacity-90 transition disabled:bg-opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center justify-center px-6 py-2 bg-vesta-primary text-white font-bold rounded-lg hover:bg-opacity-90 transition disabled:bg-opacity-50 disabled:cursor-not-allowed w-36"
                 >
                     {isAdding ? (
                         <>
                             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                            Crawling...
+                            Adding...
                         </>
                     ) : (
                         <>
@@ -102,16 +110,23 @@ const KnowledgeBaseScreen: React.FC<KnowledgeBaseScreenProps> = ({ navigateTo })
                     </td>
                     <td className="p-4 text-vesta-text-light">{source.addedDate}</td>
                     <td className="p-4">
-                      <span className="px-3 py-1 text-xs font-semibold text-vesta-accent-success bg-vesta-accent-success/10 rounded-full">
-                        {source.status}
-                      </span>
+                      {source.status === 'Active' ? (
+                        <span className="px-3 py-1 text-xs font-semibold text-vesta-accent-success bg-vesta-accent-success/10 rounded-full">
+                          {source.status}
+                        </span>
+                      ) : (
+                         <span className="flex items-center px-3 py-1 text-xs font-semibold text-vesta-secondary bg-vesta-secondary/10 rounded-full">
+                           <div className="w-3 h-3 border-2 border-vesta-secondary border-t-transparent rounded-full animate-spin mr-2"></div>
+                           {source.status}
+                         </span>
+                      )}
                     </td>
                     <td className="p-4">
                       <div className="flex items-center space-x-3">
                           <button aria-label="Refresh Source" className="text-gray-400 hover:text-vesta-secondary transition">
                               <RefreshIcon className="w-5 h-5"/>
                           </button>
-                          <button aria-label="Delete Source" className="text-gray-400 hover:text-vesta-accent-critical transition">
+                          <button onClick={() => handleDeleteSource(source.id)} aria-label="Delete Source" className="text-gray-400 hover:text-vesta-accent-critical transition">
                               <TrashIcon className="w-5 h-5"/>
                           </button>
                       </div>
